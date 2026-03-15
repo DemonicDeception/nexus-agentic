@@ -1,10 +1,16 @@
 import { useState, useMemo } from 'react';
 import { useStore } from '../store';
 
-function detectContentType(output: string): 'html' | 'markdown' | 'code' {
+function detectContentType(output: string): 'html' | 'svg' | 'markdown' | 'code' {
   const trimmed = output.trim();
+  // SVG image/diagram
+  if (trimmed.startsWith('<svg') || trimmed.startsWith('<?xml') && trimmed.includes('<svg')) {
+    return 'svg';
+  }
+  // Full HTML page or significant HTML content
   if (trimmed.startsWith('<!DOCTYPE') || trimmed.startsWith('<html') ||
-      (trimmed.startsWith('<') && trimmed.includes('</') && !trimmed.startsWith('<pre'))) {
+      (trimmed.startsWith('<') && trimmed.includes('</') && !trimmed.startsWith('<pre') &&
+       (trimmed.includes('<style') || trimmed.includes('<div') || trimmed.includes('<section')))) {
     return 'html';
   }
   const mdSignals = (output.match(/^#{1,3}\s/gm) || []).length;
@@ -14,30 +20,45 @@ function detectContentType(output: string): 'html' | 'markdown' | 'code' {
   return 'code';
 }
 
-// Check if code can be previewed as a live page
+// Check if content can be previewed live
 function canPreview(output: string): boolean {
   const lower = output.toLowerCase();
-  // Has HTML tags somewhere in the code (even inside code blocks)
+  // SVG content
+  if (lower.includes('<svg') && lower.includes('</svg>')) return true;
+  // HTML content
   return (lower.includes('<html') || lower.includes('<body') || lower.includes('<div') ||
           lower.includes('<section') || lower.includes('<style') || lower.includes('<canvas')) &&
          lower.includes('</');
 }
 
-// Extract HTML from code blocks or use raw output
+// Extract renderable content from output
 function extractHtmlForPreview(output: string): string {
-  // Try to extract from ```html code blocks
+  const trimmed = output.trim();
+
+  // SVG — extract and wrap in HTML page with dark bg
+  const svgMatch = output.match(/<svg[\s\S]*?<\/svg>/i);
+  if (svgMatch) {
+    return `<!DOCTYPE html><html><head><style>body{margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0a0f1e;}</style></head><body>${svgMatch[0]}</body></html>`;
+  }
+
+  // Extract from ```html code blocks
   const htmlBlock = output.match(/```html?\n([\s\S]*?)```/);
   if (htmlBlock) return htmlBlock[1];
 
-  // Try to find a complete HTML document
+  // Extract from ```svg code blocks
+  const svgBlock = output.match(/```svg\n([\s\S]*?)```/);
+  if (svgBlock) {
+    return `<!DOCTYPE html><html><head><style>body{margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0a0f1e;}</style></head><body>${svgBlock[1]}</body></html>`;
+  }
+
+  // Complete HTML document
   const docMatch = output.match(/(<!DOCTYPE[\s\S]*<\/html>)/i);
   if (docMatch) return docMatch[1];
 
-  // If the output itself looks like HTML, use it directly
-  const trimmed = output.trim();
+  // Raw HTML/SVG
   if (trimmed.startsWith('<')) return trimmed;
 
-  // Wrap fragments in a basic page
+  // Wrap HTML fragments
   const bodyMatch = output.match(/<(?:div|section|header|main|style)[\s\S]*$/im);
   if (bodyMatch) {
     return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
@@ -137,7 +158,7 @@ export function AssetsPanel() {
         <span className="assets-count">{assets.length} artifacts</span>
         {selected && (
           <div className="assets-view-toggle">
-            {(contentType !== 'code') && (
+            {(contentType === 'markdown') && (
               <button className={`assets-toggle-btn ${viewMode === 'rendered' ? 'active' : ''}`} onClick={() => setViewMode('rendered')}>Rendered</button>
             )}
             <button className={`assets-toggle-btn ${viewMode === 'source' ? 'active' : ''}`} onClick={() => setViewMode('source')}>Source</button>
@@ -161,12 +182,12 @@ export function AssetsPanel() {
               <div
                 key={asset.id}
                 className={`assets-item ${selectedId === asset.id ? 'active' : ''}`}
-                onClick={() => { setSelectedId(asset.id); setViewMode(type !== 'code' ? 'rendered' : preview ? 'preview' : 'source'); }}
+                onClick={() => { setSelectedId(asset.id); setViewMode(type === 'svg' || (type === 'code' && preview) ? 'preview' : type !== 'code' ? 'rendered' : 'source'); }}
               >
                 <div className="assets-item-header">
                   <span className="assets-item-dot" style={{ background: asset.color }} />
                   <span className="assets-item-agent" style={{ color: asset.color }}>{asset.agentName}</span>
-                  <span className="assets-item-type">{preview ? 'LIVE' : type === 'html' ? 'HTML' : type === 'markdown' ? 'DOC' : 'CODE'}</span>
+                  <span className="assets-item-type">{type === 'svg' ? 'SVG' : preview ? 'LIVE' : type === 'html' ? 'HTML' : type === 'markdown' ? 'DOC' : 'CODE'}</span>
                   <span className="assets-item-dept">{asset.department}</span>
                 </div>
                 <div className="assets-item-task">{asset.task}</div>
