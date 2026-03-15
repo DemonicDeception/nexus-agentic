@@ -15,9 +15,6 @@
     "@react-three/drei": "^9.117.3",
     "@react-three/fiber": "^8.17.10",
     "@react-three/postprocessing": "^2.16.3",
-    "@react-three/xr": "^6.6.11",
-    "@webspatial/core-sdk": "^1.2.1",
-    "@webspatial/react-sdk": "^1.2.1",
     "cors": "^2.8.5",
     "express": "^4.21.1",
     "react": "^18.3.1",
@@ -36,13 +33,9 @@
     "@types/react-dom": "^18.3.1",
     "@types/three": "^0.170.0",
     "@vitejs/plugin-react": "^4.3.4",
-    "@webspatial/builder": "^1.2.1",
-    "@webspatial/platform-visionos": "^1.2.1",
-    "@webspatial/vite-plugin": "^1.0.1",
     "concurrently": "^9.1.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
-    "vite": "^6.0.3",
-    "vite-plugin-html": "^3.2.2"
+    "vite": "^6.0.3"
   }
 }
