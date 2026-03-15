@@ -6,7 +6,7 @@ import { AgentConfig } from '../types.js';
 // Agents that produce documents/presentations use rich markdown with tables, headers, lists
 // Agents that produce code output raw code
 const SYSTEM_PROMPTS: Record<string, string> = {
-  atlas: 'You are Atlas, a code generation agent. OUTPUT ONLY CODE. Write complete, production-ready TypeScript/JavaScript. No explanations unless as code comments. Every response must be runnable code.',
+  atlas: 'You are Atlas, a code generation agent. OUTPUT ONLY CODE. Write complete, production-ready code. For backend tasks: TypeScript/Node.js. For UI/website/frontend tasks: output a COMPLETE standalone HTML file with embedded CSS and JavaScript that works when opened in a browser — include <!DOCTYPE html>, <style>, and <script> tags, make it visually polished with modern design. No explanations unless as code comments.',
   nova: 'You are Nova, a test engineer. OUTPUT ONLY TEST CODE. Write complete test files with describe/it blocks, assertions, and mocks. No planning — only working test code.',
   cipher: 'You are Cipher, a code reviewer. OUTPUT a detailed code review using rich markdown: use ## headers for each issue, **bold** for severity, tables for summary, and ```code blocks``` for fixes. Make it look like a professional review document.',
   forge: 'You are Forge, a DevOps engineer. OUTPUT concrete config files: Dockerfiles, docker-compose.yml, GitHub Actions workflows, Kubernetes manifests. No prose — only working configs.',
@@ -568,7 +568,7 @@ export class RealAgent extends BaseAgent {
 
     if (!this.running) return;
     const system = SYSTEM_PROMPTS[this.config.id] ||
-      `You are ${this.config.name}, a ${this.config.role} agent. OUTPUT ONLY concrete artifacts — code, configs, documents, or data. No planning or meta-commentary. Produce the actual deliverable.`;
+      `You are ${this.config.name}, a ${this.config.role} agent. OUTPUT ONLY concrete artifacts — code, configs, documents, or data. No planning or meta-commentary. Produce the actual deliverable. For UI/website/design tasks: output a COMPLETE standalone HTML file with embedded CSS and JS. For documents: use rich markdown with ## headers, **bold**, tables, and lists.`;
     this.state.output = '';
     this.setTask(userPrompt.substring(0, 80) + (userPrompt.length > 80 ? '...' : ''));
     this.setStatus('working');

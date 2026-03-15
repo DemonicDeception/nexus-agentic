@@ -3,10 +3,10 @@ import { useStore } from '../store';
 
 function detectContentType(output: string): 'html' | 'markdown' | 'code' {
   const trimmed = output.trim();
-  if (trimmed.startsWith('<!DOCTYPE') || trimmed.startsWith('<html') || trimmed.startsWith('<div') || trimmed.startsWith('<section') || trimmed.startsWith('<style')) {
+  if (trimmed.startsWith('<!DOCTYPE') || trimmed.startsWith('<html') ||
+      (trimmed.startsWith('<') && trimmed.includes('</') && !trimmed.startsWith('<pre'))) {
     return 'html';
   }
-  // Check for significant markdown indicators
   const mdSignals = (output.match(/^#{1,3}\s/gm) || []).length;
   const hasTable = output.includes('|---');
   const hasBullets = (output.match(/^[-*]\s/gm) || []).length > 2;
@@ -14,37 +14,59 @@ function detectContentType(output: string): 'html' | 'markdown' | 'code' {
   return 'code';
 }
 
-// Simple markdown → HTML renderer (no external deps)
+// Check if code can be previewed as a live page
+function canPreview(output: string): boolean {
+  const lower = output.toLowerCase();
+  // Has HTML tags somewhere in the code (even inside code blocks)
+  return (lower.includes('<html') || lower.includes('<body') || lower.includes('<div') ||
+          lower.includes('<section') || lower.includes('<style') || lower.includes('<canvas')) &&
+         lower.includes('</');
+}
+
+// Extract HTML from code blocks or use raw output
+function extractHtmlForPreview(output: string): string {
+  // Try to extract from ```html code blocks
+  const htmlBlock = output.match(/```html?\n([\s\S]*?)```/);
+  if (htmlBlock) return htmlBlock[1];
+
+  // Try to find a complete HTML document
+  const docMatch = output.match(/(<!DOCTYPE[\s\S]*<\/html>)/i);
+  if (docMatch) return docMatch[1];
+
+  // If the output itself looks like HTML, use it directly
+  const trimmed = output.trim();
+  if (trimmed.startsWith('<')) return trimmed;
+
+  // Wrap fragments in a basic page
+  const bodyMatch = output.match(/<(?:div|section|header|main|style)[\s\S]*$/im);
+  if (bodyMatch) {
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+      body { font-family: system-ui, sans-serif; margin: 0; padding: 20px; background: #fff; color: #111; }
+      * { box-sizing: border-box; }
+    </style></head><body>${bodyMatch[0]}</body></html>`;
+  }
+
+  return output;
+}
+
 function renderMarkdown(md: string): string {
   let html = md
-    // Escape HTML entities first
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    // Headers
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/^### (.+)$/gm, '<h3>$1</h3>')
     .replace(/^## (.+)$/gm, '<h2>$1</h2>')
     .replace(/^# (.+)$/gm, '<h1>$1</h1>')
-    // Bold and italic
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.+?)\*/g, '<em>$1</em>')
-    // Inline code
     .replace(/`([^`]+)`/g, '<code>$1</code>')
-    // Code blocks
     .replace(/```[\w]*\n([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
-    // Horizontal rules
     .replace(/^---$/gm, '<hr/>')
-    // List items
     .replace(/^[-*] (.+)$/gm, '<li>$1</li>')
-    // Line breaks
     .replace(/\n\n/g, '</p><p>')
     .replace(/\n/g, '<br/>');
 
-  // Wrap lists
   html = html.replace(/((<li>.*<\/li><br\/>?)+)/g, '<ul>$1</ul>');
   html = html.replace(/<br\/><\/li>/g, '</li>');
 
-  // Tables
   html = html.replace(/\|(.+)\|\n\|[-| ]+\|\n((?:\|.+\|\n?)+)/g, (_match, header, body) => {
     const ths = header.split('|').filter((c: string) => c.trim()).map((c: string) => `<th>${c.trim()}</th>`).join('');
     const rows = body.trim().split('\n').map((row: string) => {
@@ -57,7 +79,7 @@ function renderMarkdown(md: string): string {
   return `<p>${html}</p>`;
 }
 
-const RENDERED_STYLES = `
+const DOC_STYLES = `
   body { font-family: 'Inter', system-ui, sans-serif; color: #e2e8f0; background: #0a0f1e; padding: 24px; line-height: 1.7; margin: 0; }
   h1 { color: #00d4ff; font-size: 24px; border-bottom: 1px solid #1e293b; padding-bottom: 8px; margin-top: 0; }
   h2 { color: #00d4ff; font-size: 18px; margin-top: 24px; }
@@ -71,23 +93,24 @@ const RENDERED_STYLES = `
   th { background: rgba(0,212,255,0.1); color: #00d4ff; text-align: left; padding: 8px 12px; border: 1px solid #1e293b; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
   td { padding: 8px 12px; border: 1px solid #1e293b; font-size: 13px; }
   tr:nth-child(even) { background: rgba(255,255,255,0.02); }
-  ul, ol { padding-left: 20px; }
-  li { margin: 4px 0; }
+  ul, ol { padding-left: 20px; } li { margin: 4px 0; }
   hr { border: none; border-top: 1px solid #1e293b; margin: 20px 0; }
-  a { color: #00d4ff; }
 `;
+
+type ViewMode = 'rendered' | 'source' | 'preview';
 
 export function AssetsPanel() {
   const open = useStore((s) => s.assetsOpen);
   const setOpen = useStore((s) => s.setAssetsOpen);
   const assets = useStore((s) => s.assets);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<'rendered' | 'source'>('rendered');
+  const [viewMode, setViewMode] = useState<ViewMode>('rendered');
 
   if (!open) return null;
 
   const selected = assets.find((a) => a.id === selectedId);
   const contentType = selected ? detectContentType(selected.output) : 'code';
+  const showPreview = selected ? canPreview(selected.output) : false;
 
   const renderedHtml = useMemo(() => {
     if (!selected) return '';
@@ -96,17 +119,31 @@ export function AssetsPanel() {
     return '';
   }, [selected, contentType]);
 
-  const iframeContent = renderedHtml ? `<!DOCTYPE html><html><head><style>${RENDERED_STYLES}</style></head><body>${renderedHtml}</body></html>` : '';
+  const previewHtml = useMemo(() => {
+    if (!selected || !showPreview) return '';
+    return extractHtmlForPreview(selected.output);
+  }, [selected, showPreview]);
+
+  const iframeDoc = viewMode === 'preview' && previewHtml
+    ? previewHtml
+    : renderedHtml
+      ? `<!DOCTYPE html><html><head><style>${DOC_STYLES}</style></head><body>${renderedHtml}</body></html>`
+      : '';
 
   return (
     <div className="assets-panel">
       <div className="assets-header">
         <span className="assets-title">ASSETS</span>
         <span className="assets-count">{assets.length} artifacts</span>
-        {selected && contentType !== 'code' && (
+        {selected && (
           <div className="assets-view-toggle">
-            <button className={`assets-toggle-btn ${viewMode === 'rendered' ? 'active' : ''}`} onClick={() => setViewMode('rendered')}>Rendered</button>
+            {(contentType !== 'code') && (
+              <button className={`assets-toggle-btn ${viewMode === 'rendered' ? 'active' : ''}`} onClick={() => setViewMode('rendered')}>Rendered</button>
+            )}
             <button className={`assets-toggle-btn ${viewMode === 'source' ? 'active' : ''}`} onClick={() => setViewMode('source')}>Source</button>
+            {showPreview && (
+              <button className={`assets-toggle-btn preview ${viewMode === 'preview' ? 'active' : ''}`} onClick={() => setViewMode('preview')}>Preview</button>
+            )}
           </div>
         )}
         <button className="assets-close" onClick={() => setOpen(false)}>x</button>
@@ -119,16 +156,17 @@ export function AssetsPanel() {
           )}
           {[...assets].reverse().map((asset) => {
             const type = detectContentType(asset.output);
+            const preview = canPreview(asset.output);
             return (
               <div
                 key={asset.id}
                 className={`assets-item ${selectedId === asset.id ? 'active' : ''}`}
-                onClick={() => { setSelectedId(asset.id); setViewMode('rendered'); }}
+                onClick={() => { setSelectedId(asset.id); setViewMode(type !== 'code' ? 'rendered' : preview ? 'preview' : 'source'); }}
               >
                 <div className="assets-item-header">
                   <span className="assets-item-dot" style={{ background: asset.color }} />
                   <span className="assets-item-agent" style={{ color: asset.color }}>{asset.agentName}</span>
-                  <span className="assets-item-type">{type === 'html' ? 'HTML' : type === 'markdown' ? 'DOC' : 'CODE'}</span>
+                  <span className="assets-item-type">{preview ? 'LIVE' : type === 'html' ? 'HTML' : type === 'markdown' ? 'DOC' : 'CODE'}</span>
                   <span className="assets-item-dept">{asset.department}</span>
                 </div>
                 <div className="assets-item-task">{asset.task}</div>
@@ -145,12 +183,21 @@ export function AssetsPanel() {
                 <span style={{ color: selected.color }}>{selected.agentName}</span>
                 <span className="assets-viewer-task">{selected.task}</span>
               </div>
-              {viewMode === 'rendered' && contentType !== 'code' ? (
+              {viewMode === 'source' ? (
+                <pre className="assets-viewer-output">{selected.output}</pre>
+              ) : (viewMode === 'preview' && previewHtml) ? (
                 <iframe
                   className="assets-viewer-iframe"
-                  srcDoc={iframeContent}
+                  srcDoc={previewHtml}
+                  sandbox="allow-scripts allow-same-origin"
+                  title="Live preview"
+                />
+              ) : (viewMode === 'rendered' && iframeDoc) ? (
+                <iframe
+                  className="assets-viewer-iframe"
+                  srcDoc={iframeDoc}
                   sandbox="allow-same-origin"
-                  title="Asset preview"
+                  title="Rendered document"
                 />
               ) : (
                 <pre className="assets-viewer-output">{selected.output}</pre>

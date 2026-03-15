@@ -1368,6 +1368,15 @@ html, body, #root {
   color: var(--text-secondary);
 }
 
+.assets-toggle-btn.preview {
+  color: var(--green);
+}
+
+.assets-toggle-btn.preview.active {
+  background: var(--green-dim);
+  color: var(--green);
+}
+
 .assets-item-type {
   font-family: var(--font-mono);
   font-size: 8px;
