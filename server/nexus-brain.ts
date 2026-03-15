@@ -64,13 +64,14 @@ Respond in this exact JSON format (no markdown, no code fences):
 }
 
 Rules:
+- Each agent's task must be a SPECIFIC, SELF-CONTAINED instruction that tells the agent EXACTLY what to produce — do NOT pass the user's original prompt to agents
+- NO TWO AGENTS should have the same or overlapping tasks
+- Task format: "Write a [specific deliverable] about/for [specific topic]" — not "handle the engineering part"
 - Use existing agents when their role matches
-- Create new agents (isNew: true) when you need more capacity or specialized roles
-- For large-scale tasks, don't hesitate to assign 20, 50, or 100+ agents
-- Each agent should have a concrete, independent sub-task
-- Give new agents a unique camelCase id and a creative name in the role field
-- Think about parallelism — what can run concurrently vs what has dependencies
-- Be ambitious with agent count for enterprise-scale tasks`;
+- Create new agents (isNew: true) when you need more capacity
+- For large-scale tasks, assign many agents — each with a UNIQUE deliverable
+- Example good tasks: "Write the user authentication middleware with JWT tokens", "Create a competitive pricing table comparing us vs 3 competitors", "Write SQL queries for daily revenue dashboard"
+- Example BAD tasks: "Handle engineering", "Work on the landing page project", "Support the team"`;
 
     if (!this.client) {
       return this.fallbackDecompose(userPrompt, existingRoster);
@@ -109,10 +110,11 @@ Rules:
   }
 
   private fallbackDecompose(userPrompt: string, roster: AgentConfig[]): DecomposeResult {
-    // Generate a large-scale fallback that creates many agents
     const prompt = userPrompt.toLowerCase();
     const assignments: TaskAssignment[] = [];
     let agentCounter = 0;
+    // Extract a short topic from the user prompt
+    const topic = userPrompt.length > 80 ? userPrompt.substring(0, 80) + '...' : userPrompt;
 
     const addExisting = (id: string, task: string) => {
       const agent = roster.find((a) => a.id === id);
@@ -124,87 +126,60 @@ Rules:
       assignments.push({ agentId: id, department: dept, role, task, isNew: true });
     };
 
-    // Smart assignment based on what's actually asked
-    addExisting('atlas', userPrompt);
-
-    // Only scale up for explicitly large requests
     const wordCount = userPrompt.split(/\s+/).length;
     const isLargeRequest = wordCount > 50 || prompt.includes('full-scale') || prompt.includes('enterprise platform') || prompt.includes('launch a company') || prompt.includes('100 agents') || prompt.includes('all departments');
 
     if (isLargeRequest) {
-      addExisting('nova', `Test strategy: ${userPrompt}`);
-      addExisting('cipher', `Code review: ${userPrompt}`);
-      addExisting('sage', `Executive oversight: ${userPrompt}`);
-      addExisting('forge', `Deployment: ${userPrompt}`);
-      // Spawn many agents across all departments
-      const tasks: [Department, string, string][] = [
-        ['engineering', 'API Design', 'Design REST API schema and endpoints'],
-        ['engineering', 'Database Schema', 'Design database models and migrations'],
-        ['engineering', 'Auth Module', 'Implement authentication and authorization'],
-        ['engineering', 'Frontend Components', 'Build UI component library'],
-        ['engineering', 'WebSocket Layer', 'Implement real-time communication'],
-        ['engineering', 'Search Engine', 'Build full-text search indexing'],
-        ['engineering', 'File Processing', 'Implement file upload and processing pipeline'],
-        ['engineering', 'Notification Service', 'Build multi-channel notification system'],
-        ['engineering', 'Cache Layer', 'Design caching strategy and implementation'],
-        ['engineering', 'Rate Limiting', 'Implement API rate limiting and throttling'],
-        ['qa', 'Integration Tests', 'Write integration test suite for API'],
-        ['qa', 'Load Testing', 'Design load test scenarios for 10K concurrent users'],
-        ['qa', 'Security Audit', 'Perform OWASP security audit'],
-        ['qa', 'E2E Tests', 'Build end-to-end test automation'],
-        ['qa', 'Accessibility Audit', 'Ensure WCAG 2.1 AA compliance'],
-        ['devops', 'Kubernetes Setup', 'Configure K8s cluster and deployments'],
-        ['devops', 'Monitoring Stack', 'Set up Prometheus, Grafana, alerting'],
-        ['devops', 'CI Pipeline', 'Build multi-stage CI with caching'],
-        ['devops', 'CDN Setup', 'Configure edge caching and CDN'],
-        ['devops', 'Secrets Management', 'Set up Vault for secrets rotation'],
-        ['devops', 'Auto-scaling', 'Configure HPA and cluster autoscaling'],
-        ['devops', 'Disaster Recovery', 'Design backup and DR procedures'],
-        ['sales', 'Market Analysis', 'Analyze TAM/SAM/SOM for target market'],
-        ['sales', 'Pricing Strategy', 'Design tiered pricing model'],
-        ['sales', 'Competitor Analysis', 'Deep-dive competitive landscape'],
-        ['sales', 'Sales Playbook', 'Build enterprise sales methodology'],
-        ['sales', 'Demo Script', 'Create product demo flow'],
-        ['sales', 'ROI Calculator', 'Build customer ROI projection model'],
-        ['support', 'Knowledge Base', 'Create comprehensive documentation'],
-        ['support', 'Onboarding Flow', 'Design customer onboarding experience'],
-        ['support', 'SLA Framework', 'Define support tiers and SLAs'],
-        ['support', 'Chatbot Flows', 'Design automated support chatbot'],
-        ['support', 'Escalation Process', 'Define escalation matrix and procedures'],
-        ['marketing', 'Brand Guidelines', 'Create brand voice and visual identity'],
-        ['marketing', 'Launch Campaign', 'Plan multi-channel product launch'],
-        ['marketing', 'Content Calendar', 'Build 90-day content strategy'],
-        ['marketing', 'SEO Strategy', 'Technical and content SEO plan'],
-        ['marketing', 'Social Media', 'Design social media presence strategy'],
-        ['marketing', 'PR Outreach', 'Draft press release and media list'],
-        ['analytics', 'Data Pipeline', 'Design event tracking and ETL'],
-        ['analytics', 'KPI Dashboard', 'Build executive metrics dashboard'],
-        ['analytics', 'User Analytics', 'Implement product analytics framework'],
-        ['analytics', 'Revenue Modeling', 'Build financial projections model'],
-        ['analytics', 'A/B Framework', 'Design experimentation platform'],
-        ['executive', 'Business Plan', 'Draft investor-ready business plan'],
-        ['executive', 'Risk Assessment', 'Comprehensive risk analysis and mitigation'],
-        ['executive', 'OKR Framework', 'Define company-wide OKRs for next quarter'],
-        ['executive', 'Board Report', 'Prepare board meeting presentation'],
-        ['executive', 'Hiring Plan', 'Design org chart and hiring roadmap'],
+      // Each agent gets a UNIQUE, STANDALONE task — never the raw user prompt
+      addExisting('atlas', `Build a complete, polished landing page website for: ${topic}`);
+      addExisting('nova', `Write a comprehensive integration test suite covering authentication, API endpoints, and error handling`);
+      addExisting('cipher', `Write a code review checklist and security audit report covering OWASP top 10 vulnerabilities`);
+      addExisting('forge', `Write a production Dockerfile, docker-compose.yml, and GitHub Actions CI/CD pipeline configuration`);
+      addExisting('sage', `Write a Series A board deck document: market size, product roadmap, financial projections, and key risks`);
+      addExisting('beacon', `Write a competitive analysis document comparing 4 competitors with a feature/pricing comparison table`);
+      addExisting('mercury', `Write a 3-email outbound sales sequence targeting VP Engineering personas with specific subject lines and CTAs`);
+      addExisting('echo', `Write template responses for the top 5 most common customer support tickets with troubleshooting steps`);
+      addExisting('harbor', `Write a developer quickstart guide with API reference, code examples, and error code table`);
+      addExisting('sentinel', `Write a QA test plan document with test cases, expected results, and pass/fail criteria for all major features`);
+      addExisting('prism', `Write a performance benchmark report with load test results, latency measurements, and optimization recommendations`);
+      addExisting('apex', `Write a Kubernetes deployment manifest with HPA auto-scaling, resource limits, and health checks`);
+      addExisting('nimbus', `Write a cloud architecture document with cost estimates per service, instance sizing, and scaling strategy`);
+      addExisting('pulse', `Write a product launch marketing plan: Product Hunt post, LinkedIn announcement, and press release draft`);
+      addExisting('orbit', `Write SQL queries for an executive dashboard: daily revenue, conversion funnel, cohort retention, and anomaly detection`);
+
+      // Spawn additional specialists with unique tasks
+      const extraTasks: [Department, string, string][] = [
+        ['engineering', 'Auth Engineer', 'Write JWT authentication middleware with token refresh, role-based access control, and session management'],
+        ['engineering', 'Database Architect', 'Write database schema migrations for users, transactions, and audit logs with indexes and constraints'],
+        ['engineering', 'Search Engineer', 'Write a full-text search implementation with indexing, ranking, and autocomplete functionality'],
+        ['qa', 'Load Tester', 'Write load test scripts simulating 5,000 concurrent users with metrics collection and bottleneck analysis'],
+        ['qa', 'Security Tester', 'Write a penetration testing report covering SQL injection, XSS, CSRF, and authentication bypass attempts'],
+        ['devops', 'Monitoring Engineer', 'Write Prometheus alerting rules and Grafana dashboard JSON for API latency, error rates, and resource usage'],
+        ['sales', 'Pricing Analyst', 'Write a tiered pricing model document with Starter/Growth/Enterprise plans, feature matrices, and margin analysis'],
+        ['support', 'Onboarding Designer', 'Write a customer onboarding flow document with step-by-step activation guide and success milestones'],
+        ['marketing', 'Content Strategist', 'Write a 90-day content calendar with blog topics, social media schedule, and SEO keyword targets'],
+        ['analytics', 'Data Modeler', 'Write a financial projections model with revenue forecasts, unit economics, and scenario analysis'],
+        ['executive', 'Risk Analyst', 'Write a comprehensive risk assessment document with probability/impact matrix and mitigation strategies'],
+        ['executive', 'HR Planner', 'Write a hiring plan for the first 15 employees with role descriptions, salary ranges, and timeline'],
       ];
 
-      for (const [dept, role, task] of tasks) {
-        addNew(dept, role, `${task}: ${userPrompt}`);
+      for (const [dept, role, task] of extraTasks) {
+        addNew(dept, role, task);
       }
     } else {
-      // Simple request — just Atlas (already added above) + maybe 1-2 related agents
-      if (prompt.includes('test') || prompt.includes('qa')) addExisting('nova', `Write tests: ${userPrompt}`);
-      if (prompt.includes('deploy') || prompt.includes('infra')) addExisting('forge', `Deploy: ${userPrompt}`);
-      if (prompt.includes('design') || prompt.includes('logo') || prompt.includes('brand')) addExisting('pulse', `Design: ${userPrompt}`);
-      if (prompt.includes('document') || prompt.includes('docs')) addExisting('harbor', `Document: ${userPrompt}`);
-      if (prompt.includes('report') || prompt.includes('deck') || prompt.includes('pitch')) addExisting('sage', `Report: ${userPrompt}`);
-      if (prompt.includes('dashboard') || prompt.includes('analytics')) addExisting('orbit', `Analytics: ${userPrompt}`);
+      // Simple request — Atlas gets the main task, others get related but DIFFERENT tasks
+      addExisting('atlas', userPrompt);
+      if (prompt.includes('test') || prompt.includes('qa')) addExisting('nova', `Write unit and integration tests for the implementation described above`);
+      if (prompt.includes('deploy') || prompt.includes('infra')) addExisting('forge', `Write deployment configuration files (Dockerfile + CI pipeline) for production`);
+      if (prompt.includes('design') || prompt.includes('logo') || prompt.includes('brand')) addExisting('pulse', `Design a brand logo as SVG with modern geometric style`);
+      if (prompt.includes('document') || prompt.includes('docs')) addExisting('harbor', `Write developer documentation with setup guide, API reference, and code examples`);
+      if (prompt.includes('report') || prompt.includes('deck') || prompt.includes('pitch')) addExisting('sage', `Write an executive summary document with key metrics, risks, and recommendations`);
+      if (prompt.includes('dashboard') || prompt.includes('analytics')) addExisting('orbit', `Write SQL queries for a metrics dashboard with charts and KPI tracking`);
     }
 
     return {
       assignments,
-      plan: `Deploying ${assignments.length} agents across ${new Set(assignments.map((a) => a.department)).size} departments for: "${userPrompt}"`,
+      plan: `Deploying ${assignments.length} agents across ${new Set(assignments.map((a) => a.department)).size} departments`,
       tokens: 0,
       cost: 0,
     };
