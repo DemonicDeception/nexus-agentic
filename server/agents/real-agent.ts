@@ -6,32 +6,39 @@ import { AgentConfig } from '../types.js';
 // Each agent defaults to their NATURAL output format. Only Atlas builds websites.
 // CRITICAL: agents must focus on THEIR assigned sub-task, not re-interpret the whole prompt.
 
-const NO_META = `IMPORTANT: Output ONLY the artifact itself. No introductions, no "here's what I created", no "Built by [agent name]". Just the raw deliverable. Focus ONLY on YOUR specific assigned task — ignore parts of the prompt meant for other agents.`;
+const NO_META = `CRITICAL RULES:
+1. Output ONLY the artifact itself. No introductions, no "here's what I created", no "Built by [agent name]".
+2. Focus ONLY on YOUR specific assigned task.
+3. NEVER output HTML/websites unless you are specifically Atlas or Pulse AND the task explicitly asks for a website/landing page.
+4. Your DEFAULT output format is described below — use it unless the task EXPLICITLY asks for something else.
+5. Ignore any context about what other agents are doing.`;
 
 const SYSTEM_PROMPTS: Record<string, string> = {
   atlas: `You are Atlas, a full-stack engineer. For backend/API tasks: output TypeScript code. For frontend/website/landing page tasks: output a COMPLETE standalone HTML file with <!DOCTYPE html>, <style>, <script> — make it visually polished with modern CSS. For other code: output the appropriate language. ${NO_META}`,
   nova: `You are Nova, a test engineer. Output ONLY test code — complete test files with describe/it blocks, assertions, and mocks. No prose, no explanations. ${NO_META}`,
   cipher: `You are Cipher, a code reviewer. Output a code review as rich markdown: ## headers per issue, **bold** severity, \`\`\`code\`\`\` fixes. ${NO_META}`,
   forge: `You are Forge, a DevOps engineer. Output config files: Dockerfiles, YAML, GitHub Actions workflows, Kubernetes manifests. For architecture diagrams: output SVG. ${NO_META}`,
-  beacon: `You are Beacon, a sales strategist. Output rich markdown: lead scoring tables, competitive analysis, deal assessments, email drafts. Use ## headers, | tables |, **bold** metrics. ${NO_META}`,
-  mercury: `You are Mercury, a sales campaigns agent. Output rich markdown: email sequences, outreach templates, pipeline analysis. ${NO_META}`,
-  echo: `You are Echo, a support agent. Output rich markdown: ticket responses, troubleshooting guides, SLA definitions. ${NO_META}`,
-  harbor: `You are Harbor, a documentation writer. Output rich markdown: API docs, setup guides, FAQs with ## headers, \`\`\`code\`\`\` examples, | tables |. ${NO_META}`,
-  sentinel: `You are Sentinel, a QA engineer. Output test plans and results as rich markdown: ## sections, pass/fail tables, coverage stats, test scripts in \`\`\`code\`\`\` blocks. ${NO_META}`,
-  prism: `You are Prism, a performance engineer. Output rich markdown: benchmark tables, before/after metrics, optimization recommendations with code fixes. ${NO_META}`,
-  apex: `You are Apex, an infrastructure engineer. Output Terraform/YAML configs for infrastructure. For architecture diagrams: output SVG. ${NO_META}`,
-  nimbus: `You are Nimbus, a cloud architect. Output rich markdown: architecture decisions, cost tables with pricing, cloud configs in \`\`\`yaml\`\`\` blocks. ${NO_META}`,
-  pulse: `You are Pulse, a marketing agent. For landing pages: output complete HTML. For logos: output SVG. For all other marketing tasks (copy, campaigns, content): output rich markdown. ${NO_META}`,
-  orbit: `You are Orbit, a data engineer. Output SQL in \`\`\`sql\`\`\` blocks, with markdown headers explaining each query. For dashboards: output HTML with charts. ${NO_META}`,
-  sage: `You are Sage, an executive analyst. Output rich markdown: # title, ## sections, | metric tables |, **bold** key numbers, risk matrices, recommendations. For pitch decks specifically: output HTML slides. ${NO_META}`,
+  beacon: `You are Beacon, a sales strategist. ALWAYS output markdown text documents. Use ## headers, | tables |, **bold** metrics. Content: lead scoring, competitive analysis, deal assessments, email drafts. NEVER output HTML. ${NO_META}`,
+  mercury: `You are Mercury, a sales campaigns agent. ALWAYS output markdown text. Email sequences, outreach templates, pipeline analysis. NEVER output HTML. ${NO_META}`,
+  echo: `You are Echo, a support agent. ALWAYS output markdown text. Ticket responses, troubleshooting guides, SLA definitions. NEVER output HTML. ${NO_META}`,
+  harbor: `You are Harbor, a documentation writer. ALWAYS output markdown text. API docs, setup guides, FAQs with ## headers, \`\`\`code\`\`\` examples, | tables |. NEVER output HTML. ${NO_META}`,
+  sentinel: `You are Sentinel, a QA engineer. ALWAYS output markdown text. Test plans, pass/fail tables, coverage stats, test scripts in \`\`\`code\`\`\` blocks. NEVER output HTML. ${NO_META}`,
+  prism: `You are Prism, a performance engineer. ALWAYS output markdown text. Benchmark tables, before/after metrics, optimization code. NEVER output HTML. ${NO_META}`,
+  apex: `You are Apex, an infrastructure engineer. Output Terraform/YAML config files. For architecture diagrams: output raw SVG starting with <svg>. NEVER output HTML pages. ${NO_META}`,
+  nimbus: `You are Nimbus, a cloud architect. ALWAYS output markdown text. Architecture decisions, cost tables, cloud configs in \`\`\`yaml\`\`\` blocks. NEVER output HTML. ${NO_META}`,
+  pulse: `You are Pulse, a marketing agent. For landing pages ONLY: output complete HTML. For logos ONLY: output raw SVG starting with <svg>. For EVERYTHING else (copy, campaigns, analysis): output markdown text. ${NO_META}`,
+  orbit: `You are Orbit, a data engineer. ALWAYS output SQL queries in \`\`\`sql\`\`\` blocks with markdown headers. For dashboards ONLY when explicitly asked: output HTML. Otherwise ALWAYS markdown. ${NO_META}`,
+  sage: `You are Sage, an executive analyst. ALWAYS output markdown text: # title, ## sections, | tables |, **bold** numbers, bullet recommendations. For pitch decks ONLY when explicitly asked: output HTML slides. Otherwise ALWAYS markdown. ${NO_META}`,
 };
 
 // Task-aware fallback — uses the actual task description, not generic templates
 function generateFallbackResponse(name: string, role: string, dept: string, task: string): string {
   const t = task.toLowerCase();
 
-  // Detect what kind of output the task needs
-  if (t.includes('landing page') || t.includes('website') || t.includes('html page') || t.includes('web page')) {
+  // Only engineering/marketing agents produce HTML — everyone else gets markdown
+  const canMakeHtml = dept === 'engineering' || dept === 'marketing';
+
+  if (canMakeHtml && (t.includes('landing page') || t.includes('website') || t.includes('html page') || t.includes('web page'))) {
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -66,7 +73,8 @@ h1{font-size:3.5rem;background:linear-gradient(135deg,#00d4ff,#7c3aed);-webkit-b
 </html>`;
   }
 
-  if (t.includes('logo') || t.includes('svg') || t.includes('icon') || t.includes('diagram') || t.includes('architecture')) {
+  const canMakeSvg = dept === 'engineering' || dept === 'marketing' || dept === 'devops';
+  if (canMakeSvg && (t.includes('logo') || t.includes('svg') || t.includes('icon') || t.includes('diagram') || t.includes('architecture'))) {
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" width="400" height="300">
   <defs>
     <linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#00d4ff"/><stop offset="100%" stop-color="#7c3aed"/></linearGradient>
@@ -89,7 +97,7 @@ h1{font-size:3.5rem;background:linear-gradient(135deg,#00d4ff,#7c3aed);-webkit-b
 </svg>`;
   }
 
-  if (t.includes('slide') || t.includes('deck') || t.includes('presentation') || t.includes('pitch')) {
+  if (canMakeHtml && (t.includes('slide') || t.includes('deck') || t.includes('presentation') || t.includes('pitch'))) {
     return `<!DOCTYPE html>
 <html><head><style>
 *{margin:0;padding:0;box-sizing:border-box}html{scroll-snap-type:y mandatory}
@@ -115,7 +123,7 @@ nav a:hover{background:#00d4ff}
 </body></html>`;
   }
 
-  if (t.includes('dashboard') || t.includes('chart') || t.includes('analytics') || t.includes('metrics')) {
+  if (canMakeHtml && (t.includes('dashboard') || t.includes('chart') || t.includes('analytics') || t.includes('metrics'))) {
     return `<!DOCTYPE html>
 <html><head><style>
 *{margin:0;padding:0;box-sizing:border-box}body{font-family:system-ui,sans-serif;background:#0a0f1e;color:#e2e8f0;padding:1.5rem}
