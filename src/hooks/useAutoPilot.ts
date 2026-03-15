@@ -2,31 +2,22 @@ import { useEffect, useRef, useCallback } from 'react';
 import { useStore } from '../store';
 import { emitCommand } from '../socket';
 
-// Full detailed prompt sent to Nexus Brain — agents get specific, concrete tasks
-const DEMO_PROMPT = `We're launching "Velocity" — a fintech API platform that lets startups embed payments, lending, and KYC into their apps.
+// Focused prompt — 6 agents, visual-heavy tasks that finish in ~15s
+const DEMO_PROMPT = `We're launching "Velocity" — a fintech API platform. Execute these tasks NOW:
 
-ENGINEERING: Build the core REST API in TypeScript/Express with these endpoints:
-- POST /api/payments/charge (Stripe integration, idempotency keys, webhook handling)
-- POST /api/kyc/verify (ID document upload, liveness check, risk scoring)
-- GET /api/ledger/:accountId/transactions (double-entry accounting, pagination, filters)
-Add JWT auth middleware, rate limiting at 1000 req/min, and input validation with Zod schemas.
+ENGINEERING (Atlas): Build a complete, beautiful landing page for Velocity as a standalone HTML file. Include: hero section with gradient background, animated headline, 3 feature cards with icons (Payments, KYC, Ledger), pricing table with 3 tiers ($299/$999/Enterprise), and a glowing CTA button. Use modern CSS with animations. Make it visually stunning.
 
-QA: Write integration tests for the payments endpoint covering: successful charge, declined card, duplicate idempotency key, webhook signature validation, and partial refund. Write load tests simulating 5000 concurrent payment requests.
+MARKETING (Pulse): Design the Velocity logo as an SVG — a modern fintech brand mark using the letter V with a lightning bolt motif, gradient from cyan to purple, clean geometric style. Output only the raw <svg> markup.
 
-DEVOPS: Create production infrastructure: multi-stage Dockerfile, Kubernetes manifests with HPA scaling at 70% CPU, Helm chart with staging/prod values, GitHub Actions CI/CD pipeline with test → build → deploy stages. Include Prometheus metrics endpoint and Grafana dashboard JSON.
+SALES (Beacon): Create a one-page competitive analysis document comparing Velocity vs Stripe Connect vs Unit vs Moov. Use a markdown table with features, pricing, and ratings. Include a deal scorecard for our first enterprise prospect.
 
-SALES: Build a go-to-market strategy targeting Series A-C fintech startups. Create a lead scoring model, draft a 3-email outbound sequence to VP Engineering personas, build a competitive analysis against Stripe Connect and Unit, and design a pricing page with Starter ($299/mo), Growth ($999/mo), and Enterprise tiers.
+EXECUTIVE (Sage): Create an HTML pitch deck for Velocity's Series A. 5 slides: Title, Problem ($340B TAM), Product (3 features), Traction (metrics table), and Ask ($8M raise). Use HTML with CSS scroll-snap slides, dark theme, large typography, and data visualizations using SVG charts.
 
-SUPPORT: Write developer documentation for the payments API: quickstart guide with curl examples, Node.js SDK code samples, error code reference table, and a troubleshooting guide for common webhook issues. Draft template responses for the top 5 anticipated support tickets.
+ANALYTICS (Orbit): Build an interactive HTML dashboard showing Velocity's real-time metrics: payment volume chart (SVG bar chart), success rate gauge, revenue counter, and transaction feed. Use HTML+CSS+JS with animated counters and a live-updating feel.
 
-MARKETING: Write a Product Hunt launch post, a technical blog post titled "Why We Built Another Payments API", LinkedIn announcement copy, and a landing page with hero copy, feature grid, and social proof section. Design a launch-week content calendar.
+DEVOPS (Forge): Create an architecture diagram as SVG showing Velocity's infrastructure: API Gateway → Load Balancer → 3 App Servers → PostgreSQL + Redis, with Stripe and KYC provider as external services. Use colored boxes and connection arrows.`;
 
-ANALYTICS: Build SQL queries for a real-time executive dashboard: daily payment volume and GMV, conversion funnel from signup to first transaction, cohort retention analysis, and revenue by pricing tier. Include anomaly detection for failed payment spikes.
-
-EXECUTIVE: Prepare a Series A board deck outline: market size ($340B embedded finance TAM), product roadmap for next 4 quarters, financial model showing path to $1M ARR in 12 months, key risks (regulatory, fraud, concentration), and hiring plan for first 15 hires across eng/sales/compliance.`;
-
-// Short version shown in the narration bar
-const DEMO_DISPLAY = 'Launch Velocity — a fintech API for payments, lending, and KYC. Build the product, test it, deploy it, sell it, and prepare for Series A.';
+const DEMO_DISPLAY = 'Launch Velocity — build the landing page, logo, pitch deck, dashboard, and architecture. All at once.';
 
 export function useAutoPilot() {
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -39,6 +30,7 @@ export function useAutoPilot() {
     const s = useStore.getState();
     s.setAutoPilotActive(false);
     s.setNarration('');
+    s.setAssetsOpen(false);
   }, []);
 
   const start = useCallback(() => {
@@ -52,58 +44,80 @@ export function useAutoPilot() {
     const store = () => useStore.getState();
     const narrate = (text: string) => store().setNarration(text);
 
-    // 0s — Fire the prompt
+    // 0s — Fire the prompt, agents start generating
     narrate(DEMO_DISPLAY);
     emitCommand('nexus:prompt', DEMO_PROMPT);
 
-    // 5s — Fleet is scaling
-    schedule(5000, () => {
+    // 4s — Show fleet scaling
+    schedule(4000, () => {
       const count = store().agents.size;
-      narrate(`${count} agents deployed across 8 departments — from a single prompt`);
+      narrate(`${count} agents deployed — building landing page, logo, pitch deck, dashboard simultaneously`);
     });
 
-    // 9s — Zoom into Atlas streaming live code
-    schedule(9000, () => {
+    // 8s — Zoom into Atlas building the landing page
+    schedule(8000, () => {
       store().selectAgent('atlas');
-      narrate('Atlas — writing the payments API with Stripe integration, live');
+      narrate('Atlas — building a complete landing page with live code streaming');
     });
 
-    // 15s — Pull back
-    schedule(15000, () => {
+    // 14s — Pull back, show all departments working
+    schedule(14000, () => {
       store().selectAgent(null);
       store().setCameraMode('command');
-      narrate('Every agent tracked. Every dollar counted. Every line of code audited.');
+      narrate('6 agents. 6 departments. Real code, real designs, real documents — all from one prompt.');
     });
 
-    // 20s — Escalation
-    schedule(20000, () => {
+    // 18s — Fleet view
+    schedule(18000, () => {
+      store().setCameraMode('fleet');
+      narrate('Fleet view — every agent tracked, every dollar counted');
+    });
+
+    // 22s — Open assets, show what was built
+    schedule(22000, () => {
+      store().setCameraMode('command');
+      store().setAssetsOpen(true);
+      narrate('Assets panel — browse everything the fleet produced');
+      // Auto-select first previewable asset
+      const assets = store().assets;
+      if (assets.length > 0) {
+        // Find an HTML/SVG asset to showcase
+        const visual = assets.find(a => {
+          const t = a.output.trim();
+          return t.startsWith('<!DOCTYPE') || t.startsWith('<html') || t.startsWith('<svg');
+        }) || assets[0];
+        // Simulate clicking it by dispatching — we'll just show the panel
+      }
+    });
+
+    // 26s — Narrate the assets
+    schedule(26000, () => {
+      const count = store().assets.length;
+      narrate(`${count} production-ready artifacts — landing pages, logos, dashboards, all live-previewable`);
+    });
+
+    // 30s — Close assets, trigger escalation for drama
+    schedule(30000, () => {
+      store().setAssetsOpen(false);
       emitCommand('demo:force-escalation');
-      narrate('Human-in-the-loop — agent needs approval to proceed');
+      narrate('Human-in-the-loop — agent needs approval before proceeding');
     });
 
-    // 25s — Approve
-    schedule(25000, () => {
+    // 34s — Approve
+    schedule(34000, () => {
       const esc = store().escalations.find(e => e.status === 'pending');
       if (esc) emitCommand('escalation:approve', esc.id);
-      narrate('Approved. Agent resumes. Full audit trail.');
+      narrate('One click. Full audit trail. Agent resumes.');
     });
 
-    // 29s — Fleet view
-    schedule(29000, () => {
-      store().setCameraMode('fleet');
-      const count = store().agents.size;
-      narrate(`${count} agents. 8 departments. One command center.`);
+    // 38s — Redirect the fleet
+    schedule(38000, () => {
+      narrate('Priorities change? One prompt redirects everything.');
+      emitCommand('nexus:prompt', 'PIVOT: Investor meeting moved to tomorrow. Sage — update the pitch deck with Q1 actuals. Pulse — redesign the logo in dark mode. Atlas — add a demo video section to the landing page.');
     });
 
-    // 35s — Redirect
-    schedule(35000, () => {
-      store().setCameraMode('command');
-      narrate('Priorities shift? One prompt redirects the entire fleet.');
-      emitCommand('nexus:prompt', 'URGENT: PCI compliance audit flagged our payment tokenization. Redirect engineering to fix the encryption layer, QA to run the compliance test suite, DevOps to rotate all API keys, and legal to draft the incident disclosure.');
-    });
-
-    // 40s — Close
-    schedule(40000, () => {
+    // 42s — Close
+    schedule(42000, () => {
       narrate('Nexus — the operating system for your AI workforce.');
     });
 
