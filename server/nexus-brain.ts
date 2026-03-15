@@ -31,8 +31,12 @@ export class NexusBrain {
     }
   }
 
-  async decompose(userPrompt: string, existingRoster: AgentConfig[]): Promise<DecomposeResult> {
+  async decompose(userPrompt: string, existingRoster: AgentConfig[], projectContext?: { agentId: string; agentName: string; task: string; outputPreview: string }[]): Promise<DecomposeResult> {
     const existingList = existingRoster.map((a) => `- ${a.id} (${a.name}): ${a.department} — ${a.role}`).join('\n');
+
+    const contextBlock = projectContext && projectContext.length > 0
+      ? `\n\nPROJECT CONTEXT — these agents have already completed work:\n${projectContext.map((c) => `- ${c.agentName} completed: "${c.task}" (${c.outputPreview})`).join('\n')}\n\nIf the user is asking to EDIT or ITERATE on existing work, assign the SAME agent that produced the original and tell them to modify their previous output. Include "EDIT:" at the start of the task so the agent knows to revise, not start from scratch.`
+      : '';
 
     const systemPrompt = `You are NEXUS, an AI fleet orchestrator. Given a user request, decompose it into SPECIFIC, NON-OVERLAPPING tasks and assign each to the right agent.
 
@@ -43,6 +47,8 @@ CRITICAL RULES:
 - Only assign agents whose skills MATCH the task. Don't assign a sales agent to build a website.
 - Keep it focused: 2-5 agents for simple requests, more only if the user explicitly asks for multi-department work
 - Task descriptions must be specific enough that the agent can produce the EXACT deliverable without guessing
+- If the user is asking to modify/edit/update/change existing work, RE-ASSIGN the same agent and prefix the task with "EDIT:"
+${contextBlock}
 
 Available agents:
 ${existingList}

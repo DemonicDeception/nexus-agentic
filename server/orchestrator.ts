@@ -26,6 +26,9 @@ export class Orchestrator {
   private pendingUpdates: Map<string, AgentState> = new Map();
   private updateFlushTimer: ReturnType<typeof setInterval> | null = null;
 
+  // Project memory — tracks completed work for follow-up edits
+  private completedWork: Map<string, { agentId: string; agentName: string; task: string; output: string }> = new Map();
+
   constructor(io: SocketServer) {
     this.io = io;
     this.costTracker = new CostTracker();
@@ -70,7 +73,15 @@ export class Orchestrator {
             .map((a) => a.getState() as any)
         );
 
-        const result = await this.nexusBrain.decompose(prompt, currentRoster);
+        // Build project context from completed work
+        const projectContext = Array.from(this.completedWork.values()).map((w) => ({
+          agentId: w.agentId,
+          agentName: w.agentName,
+          task: w.task,
+          outputPreview: w.output.substring(0, 100) + '...',
+        }));
+
+        const result = await this.nexusBrain.decompose(prompt, currentRoster, projectContext);
 
         if (result.tokens > 0) {
           this.costTracker.addCost('nexus', result.tokens, result.cost);
@@ -123,14 +134,20 @@ export class Orchestrator {
         this.auditLogger.log('nexus', 'NEXUS', 'task_complete', `${result.plan} [${result.assignments.length} agents, ${newAgentCount} new]`);
         this.io.emit('audit:event', this.auditLogger.getRecent(1)[0]);
 
-        // Dispatch tasks with stagger — faster for large fleets
+        // Dispatch tasks — include previous output for edit tasks
         const stagger = result.assignments.length > 20 ? 200 : result.assignments.length > 10 ? 400 : 800;
         for (let i = 0; i < result.assignments.length; i++) {
           const { agentId, task } = result.assignments[i];
           const agent = this.agents.get(agentId);
           if (agent && agent instanceof RealAgent) {
+            // If this is an edit task and agent has previous work, include it
+            let fullTask = task;
+            const prev = this.completedWork.get(agentId);
+            if (prev && (task.toLowerCase().startsWith('edit:') || task.toLowerCase().includes('modify') || task.toLowerCase().includes('update') || task.toLowerCase().includes('change') || task.toLowerCase().includes('revise'))) {
+              fullTask = `${task}\n\nYOUR PREVIOUS OUTPUT (modify this, don't start from scratch):\n${prev.output}`;
+            }
             setTimeout(() => {
-              (agent as RealAgent).runPrompt(task);
+              (agent as RealAgent).runPrompt(fullTask);
             }, i * stagger);
           }
         }
@@ -200,8 +217,14 @@ export class Orchestrator {
     agent.on('status', (state: AgentState) => {
       this.pendingUpdates.set(id, state);
       this.auditLogger.log(id, state.name, 'status_change', `Status → ${state.status}`);
-      // When agent completes, broadcast full output as an asset to all clients
+      // When agent completes, save to project memory and broadcast as asset
       if (state.status === 'completed' && state.output.length > 10) {
+        this.completedWork.set(state.id, {
+          agentId: state.id,
+          agentName: state.name,
+          task: state.currentTask,
+          output: state.output,
+        });
         this.io.emit('agent:asset', {
           agentId: state.id,
           agentName: state.name,
