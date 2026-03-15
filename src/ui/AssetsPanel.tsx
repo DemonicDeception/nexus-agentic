@@ -3,10 +3,21 @@ import { useStore } from '../store';
 
 type ContentType = 'html' | 'svg' | 'markdown' | 'code';
 
+// Strip markdown code fences to get the actual content
+function stripFences(output: string): string {
+  // Remove leading ```html or ```svg etc and trailing ```
+  return output.replace(/^```\w*\n?/gm, '').replace(/```\s*$/gm, '').trim();
+}
+
 function detectContentType(output: string): ContentType {
-  const trimmed = output.trim();
-  if (trimmed.startsWith('<svg')) return 'svg';
-  if (trimmed.startsWith('<!DOCTYPE') || trimmed.startsWith('<html')) return 'html';
+  const stripped = stripFences(output).trim();
+  if (stripped.startsWith('<svg')) return 'svg';
+  if (stripped.startsWith('<!DOCTYPE') || stripped.startsWith('<html')) return 'html';
+  // Check if code fences contain HTML
+  const fenceMatch = output.match(/```html?\n([\s\S]*?)```/);
+  if (fenceMatch) return 'html';
+  const svgFence = output.match(/```svg\n([\s\S]*?)```/);
+  if (svgFence) return 'svg';
   const headings = (output.match(/^#{1,3}\s/gm) || []).length;
   if (headings >= 2 || output.includes('|---')) return 'markdown';
   return 'code';
@@ -14,23 +25,31 @@ function detectContentType(output: string): ContentType {
 
 function canPreview(output: string, type: ContentType): boolean {
   if (type === 'svg' || type === 'html') return true;
-  const lower = output.toLowerCase();
-  return lower.includes('<!doctype') || (lower.includes('<html') && lower.includes('</html>'));
+  const stripped = stripFences(output).toLowerCase();
+  return stripped.includes('<!doctype') || (stripped.includes('<html') && stripped.includes('</html>'));
 }
 
 function extractForPreview(output: string, type: ContentType): string {
+  const stripped = stripFences(output);
+
   if (type === 'svg') {
-    const svg = output.match(/<svg[\s\S]*?<\/svg>/i);
+    const svg = stripped.match(/<svg[\s\S]*?<\/svg>/i);
     return svg
       ? `<!DOCTYPE html><html><head><style>body{margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0a0f1e;}</style></head><body>${svg[0]}</body></html>`
-      : output;
+      : stripped;
   }
-  if (type === 'html') return output;
-  const block = output.match(/```html?\n([\s\S]*?)```/);
-  if (block) return block[1];
-  const doc = output.match(/(<!DOCTYPE[\s\S]*?<\/html>)/i);
+
+  // For HTML: try to extract clean HTML from fences or raw output
+  const fenceMatch = output.match(/```html?\n([\s\S]*?)```/);
+  if (fenceMatch) return fenceMatch[1].trim();
+
+  const doc = stripped.match(/(<!DOCTYPE[\s\S]*?<\/html>)/i);
   if (doc) return doc[1];
-  return output;
+
+  // If stripped content starts with HTML tags, use it directly
+  if (stripped.startsWith('<!DOCTYPE') || stripped.startsWith('<html')) return stripped;
+
+  return stripped;
 }
 
 function renderMarkdown(md: string): string {
@@ -60,7 +79,6 @@ export function AssetsPanel() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('source');
 
-  // ALL hooks must be above any conditional return
   const selected = open ? assets.find((a) => a.id === selectedId) : undefined;
   const contentType = selected ? detectContentType(selected.output) : 'code';
   const previewable = selected ? canPreview(selected.output, contentType) : false;
@@ -77,7 +95,6 @@ export function AssetsPanel() {
     return '';
   }, [selected?.id, viewMode, contentType, previewable]);
 
-  // Early return AFTER all hooks
   if (!open) return null;
 
   return (

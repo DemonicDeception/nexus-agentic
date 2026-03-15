@@ -124,15 +124,18 @@ Rules:
       assignments.push({ agentId: id, department: dept, role, task, isNew: true });
     };
 
-    // Always assign core agents for relevant work
-    addExisting('atlas', `Lead implementation: ${userPrompt}`);
-    addExisting('nova', `Test strategy: ${userPrompt}`);
-    addExisting('cipher', `Code review plan: ${userPrompt}`);
-    addExisting('sage', `Executive oversight: ${userPrompt}`);
-    addExisting('forge', `Deployment pipeline: ${userPrompt}`);
+    // Smart assignment based on what's actually asked
+    addExisting('atlas', userPrompt);
 
-    // Scale based on keywords
-    if (prompt.includes('enterprise') || prompt.includes('company') || prompt.includes('scale') || prompt.includes('full') || prompt.includes('100')) {
+    // Only scale up for explicitly large requests
+    const wordCount = userPrompt.split(/\s+/).length;
+    const isLargeRequest = wordCount > 50 || prompt.includes('full-scale') || prompt.includes('enterprise platform') || prompt.includes('launch a company') || prompt.includes('100 agents') || prompt.includes('all departments');
+
+    if (isLargeRequest) {
+      addExisting('nova', `Test strategy: ${userPrompt}`);
+      addExisting('cipher', `Code review: ${userPrompt}`);
+      addExisting('sage', `Executive oversight: ${userPrompt}`);
+      addExisting('forge', `Deployment: ${userPrompt}`);
       // Spawn many agents across all departments
       const tasks: [Department, string, string][] = [
         ['engineering', 'API Design', 'Design REST API schema and endpoints'],
@@ -190,22 +193,13 @@ Rules:
         addNew(dept, role, `${task}: ${userPrompt}`);
       }
     } else {
-      // Medium scale — add ~20 agents
-      addExisting('beacon', `Lead gen strategy: ${userPrompt}`);
-      addExisting('echo', `Support readiness: ${userPrompt}`);
-      addExisting('sentinel', `QA plan: ${userPrompt}`);
-      addExisting('pulse', `Marketing angle: ${userPrompt}`);
-      addExisting('orbit', `Analytics setup: ${userPrompt}`);
-      addExisting('apex', `Infrastructure plan: ${userPrompt}`);
-      addExisting('nimbus', `Cloud architecture: ${userPrompt}`);
-      addExisting('mercury', `Outreach campaign: ${userPrompt}`);
-      addExisting('harbor', `Documentation: ${userPrompt}`);
-      addExisting('prism', `Performance plan: ${userPrompt}`);
-
-      for (let i = 0; i < 10; i++) {
-        const dept = DEPARTMENTS[i % DEPARTMENTS.length];
-        addNew(dept, `Specialist ${i + 1}`, `Support task ${i + 1} for: ${userPrompt}`);
-      }
+      // Simple request — just Atlas (already added above) + maybe 1-2 related agents
+      if (prompt.includes('test') || prompt.includes('qa')) addExisting('nova', `Write tests: ${userPrompt}`);
+      if (prompt.includes('deploy') || prompt.includes('infra')) addExisting('forge', `Deploy: ${userPrompt}`);
+      if (prompt.includes('design') || prompt.includes('logo') || prompt.includes('brand')) addExisting('pulse', `Design: ${userPrompt}`);
+      if (prompt.includes('document') || prompt.includes('docs')) addExisting('harbor', `Document: ${userPrompt}`);
+      if (prompt.includes('report') || prompt.includes('deck') || prompt.includes('pitch')) addExisting('sage', `Report: ${userPrompt}`);
+      if (prompt.includes('dashboard') || prompt.includes('analytics')) addExisting('orbit', `Analytics: ${userPrompt}`);
     }
 
     return {
