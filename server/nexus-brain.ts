@@ -45,7 +45,9 @@ CRITICAL RULES:
 - Tasks must be DIRECTLY relevant to what the user asked for
 - If the user asks for "a landing page", assign ONE engineering agent to build it — don't assign sales/support/marketing unless the user specifically asked for those
 - Only assign agents whose skills MATCH the task. Don't assign a sales agent to build a website.
-- Keep it focused: 2-5 agents for simple requests, more only if the user explicitly asks for multi-department work
+- Assign at MINIMUM 3 agents per request — always think about what supporting work is needed (tests, docs, deployment, analysis)
+- For any product/feature request: assign engineering + QA + at least one other relevant department
+- Only assign 1 agent if the request is truly trivial (e.g. "write a hello world function")
 - Task descriptions must be specific enough that the agent can produce the EXACT deliverable without guessing
 - If the user is asking to modify/edit/update/change existing work, RE-ASSIGN the same agent and prefix the task with "EDIT:"
 ${contextBlock}
@@ -173,14 +175,31 @@ Rules:
         addNew(dept, role, task);
       }
     } else {
-      // Simple request — Atlas gets the main task, others get related but DIFFERENT tasks
+      // Standard request — Atlas does the main work, always add supporting agents
       addExisting('atlas', userPrompt);
-      if (prompt.includes('test') || prompt.includes('qa')) addExisting('nova', `Write unit and integration tests for the implementation described above`);
-      if (prompt.includes('deploy') || prompt.includes('infra')) addExisting('forge', `Write deployment configuration files (Dockerfile + CI pipeline) for production`);
-      if (prompt.includes('design') || prompt.includes('logo') || prompt.includes('brand')) addExisting('pulse', `Design a brand logo as SVG with modern geometric style`);
-      if (prompt.includes('document') || prompt.includes('docs')) addExisting('harbor', `Write developer documentation with setup guide, API reference, and code examples`);
-      if (prompt.includes('report') || prompt.includes('deck') || prompt.includes('pitch')) addExisting('sage', `Write an executive summary document with key metrics, risks, and recommendations`);
-      if (prompt.includes('dashboard') || prompt.includes('analytics')) addExisting('orbit', `Write SQL queries for a metrics dashboard with charts and KPI tracking`);
+      addExisting('nova', `Write comprehensive tests for: ${topic}`);
+
+      // Add context-relevant agents
+      if (prompt.includes('deploy') || prompt.includes('infra')) {
+        addExisting('forge', `Write deployment configs (Dockerfile + CI pipeline) for this project`);
+      } else if (prompt.includes('design') || prompt.includes('logo') || prompt.includes('brand')) {
+        addExisting('pulse', `Design a brand logo as SVG with modern geometric style`);
+      } else if (prompt.includes('dashboard') || prompt.includes('analytics')) {
+        addExisting('orbit', `Write SQL queries and analytics for this project`);
+      } else if (prompt.includes('report') || prompt.includes('deck') || prompt.includes('pitch')) {
+        addExisting('sage', `Write an executive summary with key metrics and recommendations`);
+      } else {
+        // Default supporting agents for any request
+        addExisting('harbor', `Write developer documentation for: ${topic}`);
+      }
+
+      // Always add at least one more relevant agent
+      if (assignments.length < 4) {
+        if (!assignments.find(a => a.agentId === 'forge')) addExisting('forge', `Write deployment configuration for this project`);
+      }
+      if (assignments.length < 4) {
+        if (!assignments.find(a => a.agentId === 'sage')) addExisting('sage', `Write a brief executive assessment of: ${topic}`);
+      }
     }
 
     return {

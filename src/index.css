@@ -2071,14 +2071,17 @@ html, body, #root {
 
 .tab-hint {
   position: absolute;
-  bottom: 12px;
+  bottom: 16px;
   right: 20px;
   z-index: 80;
   font-family: var(--font-mono);
-  font-size: 9px;
-  letter-spacing: 1px;
-  color: var(--text-muted);
-  opacity: 0.6;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  color: var(--text-secondary);
+  padding: 6px 14px;
+  border-radius: 100px;
+  background: var(--bg-glass);
+  border: 1px solid var(--border-dim);
   pointer-events: none;
 }
 

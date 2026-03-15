@@ -49,22 +49,29 @@ export function useVoice() {
 
     const recognition = new SpeechRecognition();
     recognition.continuous = true;
-    recognition.interimResults = false;
+    recognition.interimResults = true;
     recognition.lang = 'en-US';
 
-    recognition.onstart = () => setListening(true);
+    recognition.onstart = () => {
+      console.log('[Voice] Started listening');
+      setListening(true);
+    };
     recognition.onend = () => {
+      console.log('[Voice] Stopped');
       setListening(false);
       recognitionRef.current = null;
     };
-    recognition.onerror = () => {
+    recognition.onerror = (e: any) => {
+      console.warn('[Voice] Error:', e.error, e.message);
       setListening(false);
       recognitionRef.current = null;
     };
     recognition.onresult = (event: any) => {
-      // Get the latest result
       const last = event.results[event.results.length - 1];
-      if (last.isFinal) {
+      // Show interim results in the UI so user sees it's working
+      if (!last.isFinal) {
+        setLastVoiceCommand(last[0].transcript + '...');
+      } else {
         processCommand(last[0].transcript);
       }
     };
