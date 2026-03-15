@@ -68,6 +68,7 @@ export default function App() {
       <ConnectionStatus />
 
       <ShortcutOverlay />
+      <div className="tab-hint">Press TAB for shortcuts & commands</div>
       <FpsCounter />
       <BootSplash />
     </div>
