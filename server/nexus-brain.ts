@@ -34,12 +34,20 @@ export class NexusBrain {
   async decompose(userPrompt: string, existingRoster: AgentConfig[]): Promise<DecomposeResult> {
     const existingList = existingRoster.map((a) => `- ${a.id} (${a.name}): ${a.department} — ${a.role}`).join('\n');
 
-    const systemPrompt = `You are NEXUS, an AI fleet orchestrator. Given a user request, decide EXACTLY how many agents are needed and what each should do.
+    const systemPrompt = `You are NEXUS, an AI fleet orchestrator. Given a user request, decompose it into SPECIFIC, NON-OVERLAPPING tasks and assign each to the right agent.
 
-You have these existing agents:
+CRITICAL RULES:
+- Each agent gets a UNIQUE, CONCRETE task — NO duplicates, NO overlap
+- Tasks must be DIRECTLY relevant to what the user asked for
+- If the user asks for "a landing page", assign ONE engineering agent to build it — don't assign sales/support/marketing unless the user specifically asked for those
+- Only assign agents whose skills MATCH the task. Don't assign a sales agent to build a website.
+- Keep it focused: 2-5 agents for simple requests, more only if the user explicitly asks for multi-department work
+- Task descriptions must be specific enough that the agent can produce the EXACT deliverable without guessing
+
+Available agents:
 ${existingList}
 
-You can also CREATE NEW agents if the task requires more than what exists. New agents are free to create.
+You can CREATE NEW agents (isNew: true) if needed for specialized roles.
 
 Respond in this exact JSON format (no markdown, no code fences):
 {
@@ -49,7 +57,7 @@ Respond in this exact JSON format (no markdown, no code fences):
       "agentId": "existing-id-or-new-unique-id",
       "department": "engineering|sales|support|qa|devops|marketing|analytics|executive",
       "role": "Short role description",
-      "task": "Specific task for this agent",
+      "task": "Specific, unique task — what EXACTLY to produce",
       "isNew": false
     }
   ]

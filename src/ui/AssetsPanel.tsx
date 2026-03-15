@@ -5,11 +5,8 @@ type ContentType = 'html' | 'svg' | 'markdown' | 'code';
 
 function detectContentType(output: string): ContentType {
   const trimmed = output.trim();
-  // SVG — must start with <svg tag
   if (trimmed.startsWith('<svg')) return 'svg';
-  // Full HTML document — must start with DOCTYPE or <html
   if (trimmed.startsWith('<!DOCTYPE') || trimmed.startsWith('<html')) return 'html';
-  // Markdown — significant heading/table/list markers
   const headings = (output.match(/^#{1,3}\s/gm) || []).length;
   if (headings >= 2 || output.includes('|---')) return 'markdown';
   return 'code';
@@ -17,24 +14,21 @@ function detectContentType(output: string): ContentType {
 
 function canPreview(output: string, type: ContentType): boolean {
   if (type === 'svg' || type === 'html') return true;
-  // Code that contains extractable HTML
   const lower = output.toLowerCase();
-  if (lower.includes('<!doctype') || (lower.includes('<html') && lower.includes('</html>'))) return true;
-  return false;
+  return lower.includes('<!doctype') || (lower.includes('<html') && lower.includes('</html>'));
 }
 
 function extractForPreview(output: string, type: ContentType): string {
   if (type === 'svg') {
-    const svg = output.match(/<svg[\s\S]*<\/svg>/i);
+    const svg = output.match(/<svg[\s\S]*?<\/svg>/i);
     return svg
       ? `<!DOCTYPE html><html><head><style>body{margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0a0f1e;}</style></head><body>${svg[0]}</body></html>`
       : output;
   }
   if (type === 'html') return output;
-  // Try to extract HTML from code blocks
   const block = output.match(/```html?\n([\s\S]*?)```/);
   if (block) return block[1];
-  const doc = output.match(/(<!DOCTYPE[\s\S]*<\/html>)/i);
+  const doc = output.match(/(<!DOCTYPE[\s\S]*?<\/html>)/i);
   if (doc) return doc[1];
   return output;
 }
@@ -51,19 +45,11 @@ function renderMarkdown(md: string): string {
     .replace(/```[\w]*\n([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
     .replace(/^---$/gm, '<hr/>')
     .replace(/^[-*] (.+)$/gm, '<li>$1</li>')
-    .replace(/\|(.+)\|\n\|[-| ]+\|\n((?:\|.+\|\n?)+)/g, (_m, header, body) => {
-      const ths = header.split('|').filter((c: string) => c.trim()).map((c: string) => `<th>${c.trim()}</th>`).join('');
-      const rows = body.trim().split('\n').map((row: string) => {
-        const tds = row.split('|').filter((c: string) => c.trim()).map((c: string) => `<td>${c.trim()}</td>`).join('');
-        return `<tr>${tds}</tr>`;
-      }).join('');
-      return `<table><thead><tr>${ths}</tr></thead><tbody>${rows}</tbody></table>`;
-    })
     .replace(/\n\n/g, '<br/><br/>')
     .replace(/\n/g, '<br/>');
 }
 
-const DOC_STYLES = `body{font-family:'Inter',system-ui,sans-serif;color:#e2e8f0;background:#0a0f1e;padding:24px;line-height:1.7;margin:0}h1{color:#00d4ff;font-size:24px;border-bottom:1px solid #1e293b;padding-bottom:8px}h2{color:#00d4ff;font-size:18px;margin-top:24px}h3{color:#94a3b8;font-size:14px;text-transform:uppercase;letter-spacing:1px}strong{color:#f1f5f9}code{background:rgba(0,212,255,0.1);color:#00d4ff;padding:2px 6px;border-radius:3px;font-family:'JetBrains Mono',monospace;font-size:13px}pre{background:rgba(0,0,0,0.4);border:1px solid #1e293b;border-radius:6px;padding:16px;overflow-x:auto}pre code{background:none;padding:0;color:#e2e8f0}table{border-collapse:collapse;width:100%;margin:12px 0}th{background:rgba(0,212,255,0.1);color:#00d4ff;text-align:left;padding:8px 12px;border:1px solid #1e293b;font-size:12px}td{padding:8px 12px;border:1px solid #1e293b;font-size:13px}tr:nth-child(even){background:rgba(255,255,255,0.02)}ul,ol{padding-left:20px}li{margin:4px 0}hr{border:none;border-top:1px solid #1e293b;margin:20px 0}`;
+const DOC_STYLES = `body{font-family:'Inter',system-ui,sans-serif;color:#e2e8f0;background:#0a0f1e;padding:24px;line-height:1.7;margin:0}h1{color:#00d4ff;font-size:24px;border-bottom:1px solid #1e293b;padding-bottom:8px}h2{color:#00d4ff;font-size:18px;margin-top:24px}h3{color:#94a3b8;font-size:14px;text-transform:uppercase;letter-spacing:1px}strong{color:#f1f5f9}code{background:rgba(0,212,255,0.1);color:#00d4ff;padding:2px 6px;border-radius:3px;font-family:monospace;font-size:13px}pre{background:rgba(0,0,0,0.4);border:1px solid #1e293b;border-radius:6px;padding:16px;overflow-x:auto}pre code{background:none;padding:0;color:#e2e8f0}table{border-collapse:collapse;width:100%;margin:12px 0}th{background:rgba(0,212,255,0.1);color:#00d4ff;text-align:left;padding:8px 12px;border:1px solid #1e293b;font-size:12px}td{padding:8px 12px;border:1px solid #1e293b;font-size:13px}tr:nth-child(even){background:rgba(255,255,255,0.02)}ul,ol{padding-left:20px}li{margin:4px 0}hr{border:none;border-top:1px solid #1e293b;margin:20px 0}`;
 
 type ViewMode = 'rendered' | 'source' | 'preview';
 
@@ -74,9 +60,8 @@ export function AssetsPanel() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('source');
 
-  if (!open) return null;
-
-  const selected = assets.find((a) => a.id === selectedId);
+  // ALL hooks must be above any conditional return
+  const selected = open ? assets.find((a) => a.id === selectedId) : undefined;
   const contentType = selected ? detectContentType(selected.output) : 'code';
   const previewable = selected ? canPreview(selected.output, contentType) : false;
 
@@ -91,6 +76,9 @@ export function AssetsPanel() {
     }
     return '';
   }, [selected?.id, viewMode, contentType, previewable]);
+
+  // Early return AFTER all hooks
+  if (!open) return null;
 
   return (
     <div className="assets-panel">
