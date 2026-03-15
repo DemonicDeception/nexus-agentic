@@ -1330,6 +1330,56 @@ html, body, #root {
   color: var(--text-secondary);
 }
 
+.assets-viewer-iframe {
+  flex: 1;
+  border: none;
+  background: #0a0f1e;
+  width: 100%;
+}
+
+.assets-view-toggle {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 1px solid var(--border-dim);
+}
+
+.assets-toggle-btn {
+  padding: 4px 12px;
+  border: none;
+  background: var(--bg-surface);
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.assets-toggle-btn.active {
+  background: var(--cyan-dim);
+  color: var(--cyan);
+}
+
+.assets-toggle-btn:hover:not(.active) {
+  color: var(--text-secondary);
+}
+
+.assets-item-type {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-dim);
+  color: var(--text-muted);
+}
+
 .assets-viewer-output {
   flex: 1;
   overflow-y: auto;
